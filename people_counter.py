@@ -47,8 +47,6 @@ CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
 # load our serialized model from disk
 print("[INFO] loading model...")
 net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
-L_startx,L_starty = input("Enter starting coordinates(x,y):").split(",")
-L_endx,L_endy = input("Enter ending coordinates(x,y):").split(",")
 # if a video path was not supplied, grab a reference to the webcam
 if not args.get("input", False):
 	print("[INFO] starting video stream...")
@@ -86,13 +84,16 @@ totalEntry = 0
 totalExit = 0
 # start the frames per second throughput estimator
 fps = FPS().start()
+print("Frame Size:", vs.read()[1].shape[0],"x",vs.read()[1].shape[1])
+axis = input("Enter starting 1line axis(Horizontal or Vertical)(H/V):")
+L_pos = input("Enter position:")
 
 # loop over frames from the video stream
 while True:
 	# grab the next frame and handle if we are reading from either
 	# VideoCapture or VideoStream
 	frame = vs.read()
-	#time.sleep(0.01)
+	#time.sleep(0.02)
 	frame = frame[1] if args.get("input", False) else frame
 
 	# if we are viewing a video and we did not grab a frame then we
@@ -107,7 +108,6 @@ while True:
 		frame = imutils.resize(frame,width=500)
 	else:
 		frame = imutils.resize(frame)
-	print(frame.shape)
 	rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
 	# if the frame dimensions are empty, set them
@@ -197,10 +197,11 @@ while True:
 
 	# draw a horizontal line in the center of the frame -- once an
 	# object crosses this line we will determine whether they were
-	# moving 'up' or 'down'
-	#cv2.line(frame, (0, H // 2), (W, H // 2), (0, 255, 255), 2)
-	#cv2.line(frame, (W//2, 0), (W//2, H), (0, 255, 255), 2)
-	cv2.line(frame, (int(L_startx), int(L_starty)), (int(L_endx), int(L_endy)), (255, 255, 0), 2)
+
+	if axis == "H":
+		cv2.line(frame, (0, int(L_pos)), (W, int(L_pos)), (255, 255, 0), 2)
+	else:
+		cv2.line(frame, (int(L_pos), 0), (int(L_pos), H), (255, 255, 0), 2)
 	# use the centroid tracker to associate the (1) old object
 	# centroids with (2) the newly computed object centroids
 	objects = ct.update(rects)
@@ -223,28 +224,40 @@ while True:
 			# us in which direction the object is moving (negative for
 			# 'up' and positive for 'down')
 			y = [c[1] for c in to.centroids]
+			x = [c[0] for c in to.centroids]
 			id = to.objectID
-			direction = centroid[1] - np.mean(y)
+			direction_y = centroid[1] - np.mean(y)
+			direction_x = centroid[0] - np.mean(x)
 			to.centroids.append(centroid)
-			# print ("id:",id,"x:",x)
 			# check to see if the object has been counted or not
 			if not to.counted:
 				# if the direction is negative (indicating the object
 				# is moving up) AND the centroid is above the center
 				# line, count the object
-				if direction < 0 and centroid[1]< H // 2:
-					totalEntry += 1
-					#totalLeft+=1
-					to.counted = True
-
-				# if the direction is positive (indicating the object
-				# is moving down) AND the centroid is below the
-				# center line, count the object
-				elif direction > 0 and centroid[1] > H // 2:
-					totalExit += 1
-					#totalRight += 1
-					to.counted = True
-
+				if axis == "H":
+					if direction_y < 0 and centroid[1] < int(L_pos):
+						totalEntry += 1
+						to.counted = True
+						print(id, " Entering")
+					# if the direction is positive (indicating the object
+					# is moving down) AND the centroid is below the
+					# center line, count the object
+					elif direction_y > 0 and centroid[1] > int(L_pos):
+						totalExit += 1
+						to.counted = True
+						print(id, " Exiting")
+				if axis == "V":
+					if direction_x < 0 and centroid[0] < int(L_pos):
+						totalEntry += 1
+						to.counted = True
+						print(id, " Entering")
+					# if the direction is positive (indicating the object
+					# is moving down) AND the centroid is below the
+					# center line, count the object
+					elif direction_x and centroid[0] > int(L_pos):
+						totalExit += 1
+						to.counted = True
+						print(id, " Exiting")
 		# store the trackable object in our dictionary
 		trackableObjects[objectID] = to
 
@@ -260,8 +273,6 @@ while True:
 	info = [
 		("Exit", totalExit),
 		("Entry", totalEntry),
-		# ("Left", totalLeft),
-		# ("Right", totalRight),
 		("Status", status),
 	]
 
@@ -270,7 +281,7 @@ while True:
 		text = "{}: {}".format(k, v)
 		cv2.putText(frame, text, (10, H - ((i * 20) + 20)),
 			cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-		print(id, ":", info[0], info[1])
+		# print(id, ":", info[0], info[1])
 
 	# check to see if we should write the frame to disk
 	if writer is not None:
