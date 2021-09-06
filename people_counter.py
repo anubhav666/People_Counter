@@ -93,7 +93,9 @@ while True:
 	# grab the next frame and handle if we are reading from either
 	# VideoCapture or VideoStream
 	frame = vs.read()
-	#time.sleep(0.02)
+	x = int(frame[1].shape[0])
+	y = int(frame[1].shape[1])
+	time.sleep(0.05)
 	frame = frame[1] if args.get("input", False) else frame
 
 	# if we are viewing a video and we did not grab a frame then we
@@ -104,15 +106,23 @@ while True:
 	# resize the frame to have a maximum width of 500 pixels (the
 	# less data we have, the faster we can process it), then convert
 	# the frame from BGR to RGB for dlib
-	if frame.shape[1] <500:
-		frame = imutils.resize(frame,width=500)
-	else:
-		frame = imutils.resize(frame)
-	rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
+	#if frame.shape[1] <500:
+	#frame = imutils.resize(frame,width=2160)
+	gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+	x1 = 0
+	x2 = x
+	y1 = 0
+	y2 = y
 	# if the frame dimensions are empty, set them
 	if W is None or H is None:
 		(H, W) = frame.shape[:2]
+	if int(x)>500 or int(y)>500:
+		frame = frame[int(0.25*x):int(0.75*x), int(0.25*y):int(0.75*y)]
+		x1 = int(0.25 * x)
+		y1 = int(0.25 * y)
+		x2 = int(0.75 * x)
+		y2 = int(0.75 * y)
+	#cv2.rectangle(gray,(x1,y1),(x2,y2),(0, 255, 0),2)
 
 	# if we are supposed to be writing a video to disk, initialize
 	# the writer
@@ -167,7 +177,7 @@ while True:
 				# tracker
 				tracker = dlib.correlation_tracker()
 				rect = dlib.rectangle(int(startX), int(startY), int(endX), int(endY))
-				tracker.start_track(rgb, rect)
+				tracker.start_track(frame, rect)
 
 				# add the tracker to our list of trackers so we can
 				# utilize it during skip frames
@@ -183,7 +193,7 @@ while True:
 			status = "Tracking"
 			#time.sleep(0.02)
 			# update the tracker and grab the updated position
-			tracker.update(rgb)
+			tracker.update(gray)
 			pos = tracker.get_position()
 
 			# unpack the position object
@@ -197,11 +207,14 @@ while True:
 
 	# draw a horizontal line in the center of the frame -- once an
 	# object crosses this line we will determine whether they were
-
+	gray_pos = int(int(L_pos)+x1)
+	(H, W) = gray.shape[:2]
 	if axis == "H":
 		cv2.line(frame, (0, int(L_pos)), (W, int(L_pos)), (255, 255, 0), 2)
+		cv2.line(gray, (0, gray_pos), (W, gray_pos), (255, 255, 0), 2)
 	else:
 		cv2.line(frame, (int(L_pos), 0), (int(L_pos), H), (255, 255, 0), 2)
+		cv2.line(gray, (gray_pos, 0), (gray_pos, H), (255, 255, 0), 2)
 	# use the centroid tracker to associate the (1) old object
 	# centroids with (2) the newly computed object centroids
 	objects = ct.update(rects)
@@ -275,7 +288,7 @@ while True:
 		("Entry", totalEntry),
 		("Status", status),
 	]
-
+	(H, W) = frame.shape[:2]
 	# loop over the info tuples and draw them on our frame
 	for (i, (k, v)) in enumerate(info):
 		text = "{}: {}".format(k, v)
@@ -289,6 +302,7 @@ while True:
 
 	# show the output frame
 	cv2.imshow("Frame", frame)
+	cv2.imshow("Gray", gray)
 	key = cv2.waitKey(1) & 0xFF
 
 	# if the `q` key was pressed, break from the loop
